@@ -4,7 +4,18 @@ import { PortHandle } from './port-handle'
 import { NodeStatus } from './node-status'
 import { useNodeExecutionState } from '@/stores/execution.store'
 import { useCanvasStore } from '@/stores/canvas.store'
+import { Type, Hash, List, Terminal, Eye, Cpu, type LucideIcon } from 'lucide-react'
 import type { FlxNodeDefinition } from '@/types/node'
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  Type, Hash, List, Terminal, Eye, Cpu,
+}
+
+function NodeIcon({ name, color }: { name?: string; color?: string }) {
+  const Icon = name ? ICON_MAP[name] : null
+  if (!Icon) return null
+  return <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: color ?? '#6b7280' }} />
+}
 
 interface BaseNodeShellProps {
   id: string
@@ -46,6 +57,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
           className="flex items-center gap-2 px-3 py-2 rounded-lg"
           style={{ borderLeftColor: definition.color ?? '#6b7280', borderLeftWidth: 3 }}
         >
+          <NodeIcon name={definition.icon} color={definition.color} />
           <span className="text-xs font-medium truncate flex-1">{label}</span>
           <NodeStatus nodeId={id} />
         </div>
@@ -93,6 +105,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
         className="flex items-center gap-2 px-3 py-1.5 rounded-t-lg border-b"
         style={{ borderLeftColor: definition.color ?? '#6b7280', borderLeftWidth: 3 }}
       >
+        <NodeIcon name={definition.icon} color={definition.color} />
         <span className="text-xs font-medium truncate flex-1">{label}</span>
         <NodeStatus nodeId={id} />
       </div>
