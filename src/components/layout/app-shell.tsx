@@ -6,10 +6,11 @@ import { useCanvasStore } from '@/stores/canvas.store'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { TerminalPanel } from '@/components/terminal/terminal-panel'
 import { NodeConfigSidebar } from '@/components/layout/node-config-sidebar'
+import { ExecutionHistoryPanel } from '@/components/layout/execution-history-panel'
 import { useCommandPaletteStore } from '@/stores/command-palette.store'
 import { usePersistence } from '@/hooks/use-persistence'
-import { Play, Square, Command, Terminal, Maximize2, Minimize2 } from 'lucide-react'
-import { useEffect } from 'react'
+import { Play, Square, Command, Terminal, Maximize2, Minimize2, History } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function AppShell() {
   usePersistence()
@@ -21,6 +22,8 @@ export function AppShell() {
   const terminalOpen = useTerminalStore((s) => s.isOpen)
   const viewMode = useCanvasStore((s) => s.viewMode)
   const toggleViewMode = useCanvasStore((s) => s.toggleViewMode)
+  const selectedNodeForConfig = useCanvasStore((s) => s.selectedNodeForConfig)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -71,6 +74,19 @@ export function AppShell() {
             <Minimize2 className="w-3 h-3" />
           )}
           <span>{viewMode === 'compact' ? 'Compact' : 'Expanded'}</span>
+        </button>
+
+        {/* History toggle */}
+        <button
+          onClick={() => setShowHistory((v) => !v)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+            showHistory
+              ? 'text-foreground bg-muted'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+        >
+          <History className="w-3 h-3" />
+          <span>History</span>
         </button>
 
         {/* Terminal toggle */}
@@ -125,7 +141,11 @@ export function AppShell() {
         <main className="flex-1 min-w-0">
           <CanvasView />
         </main>
-        <NodeConfigSidebar />
+        {showHistory ? (
+          <ExecutionHistoryPanel onClose={() => setShowHistory(false)} />
+        ) : selectedNodeForConfig ? (
+          <NodeConfigSidebar />
+        ) : null}
       </div>
 
       {/* Terminal Panel */}
