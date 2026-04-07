@@ -5,10 +5,12 @@ import { useTerminalStore } from '@/stores/terminal.store'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { TerminalPanel } from '@/components/terminal/terminal-panel'
 import { useCommandPaletteStore } from '@/stores/command-palette.store'
+import { usePersistence } from '@/hooks/use-persistence'
 import { Play, Square, Command, Terminal } from 'lucide-react'
 import { useEffect } from 'react'
 
 export function AppShell() {
+  usePersistence()
   const { run, status } = useRunWorkflow()
   const reset = useExecutionStore((s) => s.reset)
   const openPalette = useCommandPaletteStore((s) => s.open)
