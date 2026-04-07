@@ -124,7 +124,7 @@ async function runNode(
     case 'script': {
       let command = String(config.command ?? '')
       for (const [key, value] of Object.entries(inputs)) {
-        command = command.replaceAll(`{{${key}}}`, String(value))
+        command = command.replaceAll(`{{${key}}}`, String(value).trim())
       }
 
       const shell = (config.shell as 'powershell' | 'bash') ?? 'powershell'

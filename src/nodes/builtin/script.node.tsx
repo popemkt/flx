@@ -76,7 +76,7 @@ export const runner: FlxNodeRunner = {
 
     // Substitute {{argN}} placeholders with input values
     for (const [key, value] of Object.entries(inputs)) {
-      command = command.replaceAll(`{{${key}}}`, String(value))
+      command = command.replaceAll(`{{${key}}}`, String(value).trim())
     }
 
     const result = await context.serverApi.runScript({
