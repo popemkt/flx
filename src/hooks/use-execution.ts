@@ -1,8 +1,79 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useTerminalStore } from '@/stores/terminal.store'
 import { ensureConnected, addMessageHandler } from '@/lib/ws-client'
+import type { Node, Edge } from '@xyflow/react'
+import type { FlxNodeData } from '@/types/node'
+
+/** Walk backward from target nodes to find all upstream dependencies */
+function collectUpstreamSubgraph(
+  targetIds: Set<string>,
+  allNodes: Node<FlxNodeData>[],
+  allEdges: Edge[],
+): { nodes: Node<FlxNodeData>[]; edges: Edge[] } {
+  const included = new Set(targetIds)
+  const queue = [...targetIds]
+
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!
+    for (const edge of allEdges) {
+      if (edge.target === nodeId && !included.has(edge.source)) {
+        included.add(edge.source)
+        queue.push(edge.source)
+      }
+    }
+  }
+
+  const subNodes = allNodes.filter((n) => included.has(n.id))
+  const subEdges = allEdges.filter((e) => included.has(e.source) && included.has(e.target))
+  return { nodes: subNodes, edges: subEdges }
+}
+
+function buildExecPayload(nodes: Node<FlxNodeData>[], edges: Edge[]) {
+  return {
+    nodes: nodes.map((n) => ({
+      id: n.id,
+      typeId: n.data.definition.id,
+      label: n.data.label,
+      config: n.data.config,
+      ports: n.data.definition.ports,
+    })),
+    edges: edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourceHandle ?? '',
+      target: e.target,
+      targetHandle: e.targetHandle ?? '',
+    })),
+  }
+}
+
+async function executePayload(
+  payload: ReturnType<typeof buildExecPayload>,
+  nodeIds: string[],
+  startExecution: (id: string, nodeIds: string[]) => void,
+  completeExecution: (status: 'success' | 'error') => void,
+) {
+  ensureConnected()
+  startExecution('pending', nodeIds)
+
+  try {
+    const res = await fetch('/api/v1/execution/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!res.ok) {
+      const err = await res.json()
+      console.error('Execution failed:', err.error)
+    }
+  } catch (err) {
+    console.error('Execution failed:', err)
+    completeExecution('error')
+  }
+}
 
 export function useRunWorkflow() {
   const nodes = useWorkflowStore((s) => s.nodes)
@@ -35,7 +106,6 @@ export function useRunWorkflow() {
           completeExecution(msg.status as 'success' | 'error')
           break
         case 'execution:session-created':
-          // Server created a streaming session for a script node — add terminal tab
           addTab({
             sessionId: msg.sessionId as string,
             title: msg.title as string,
@@ -49,53 +119,31 @@ export function useRunWorkflow() {
     })
 
     return removeHandler
-  }, [setNodeRunning, setNodeComplete, setNodeError, completeExecution, updateTabStatus])
+  }, [setNodeRunning, setNodeComplete, setNodeError, completeExecution, updateTabStatus, addTab])
 
+  // Run all nodes
   const run = useCallback(async () => {
     if (status === 'running') return
     if (nodes.length === 0) return
+    const payload = buildExecPayload(nodes, edges)
+    await executePayload(payload, nodes.map((n) => n.id), startExecution, completeExecution)
+  }, [nodes, edges, status, startExecution, completeExecution])
 
-    ensureConnected()
+  // Run only selected nodes + their upstream deps
+  const runSelection = useCallback(async () => {
+    if (status === 'running') return
+    const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id))
+    if (selectedIds.size === 0) return
+    const sub = collectUpstreamSubgraph(selectedIds, nodes, edges)
+    const payload = buildExecPayload(sub.nodes, sub.edges)
+    await executePayload(payload, sub.nodes.map((n) => n.id), startExecution, completeExecution)
+  }, [nodes, edges, status, startExecution, completeExecution])
 
-    // Build the execution payload from current canvas state
-    const execNodes = nodes.map((n) => ({
-      id: n.id,
-      typeId: n.data.definition.id,
-      label: n.data.label,
-      config: n.data.config,
-      ports: n.data.definition.ports,
-    }))
+  // Compute selected node count for UI
+  const selectedCount = useMemo(
+    () => nodes.filter((n) => n.selected).length,
+    [nodes],
+  )
 
-    const execEdges = edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      sourceHandle: e.sourceHandle ?? '',
-      target: e.target,
-      targetHandle: e.targetHandle ?? '',
-    }))
-
-    // Optimistic UI: mark all nodes as pending
-    startExecution('pending', nodes.map((n) => n.id))
-
-    try {
-      const res = await fetch('/api/v1/execution/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nodes: execNodes, edges: execEdges }),
-      })
-
-      if (!res.ok) {
-        const err = await res.json()
-        console.error('Execution failed:', err.error)
-        // completeExecution is already called via WS event
-      }
-      // Result comes back after execution completes, but UI is already
-      // updated via WS events (node-start, node-complete, session-created, etc.)
-    } catch (err) {
-      console.error('Execution failed:', err)
-      completeExecution('error')
-    }
-  }, [nodes, edges, status, startExecution, completeExecution, addTab])
-
-  return { run, status }
+  return { run, runSelection, status, selectedCount }
 }

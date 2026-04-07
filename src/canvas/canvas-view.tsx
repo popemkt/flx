@@ -7,6 +7,7 @@ import {
   MiniMap,
   addEdge,
   useReactFlow,
+  SelectionMode,
   type Connection,
   type OnConnect,
 } from '@xyflow/react'
@@ -18,6 +19,7 @@ import type { NodeMouseHandler } from '@xyflow/react'
 import { getReactFlowNodeTypes, getReactFlowEdgeTypes } from './node-types-registry'
 import { isValidConnection } from './edge-validators'
 import { useCanvasContextMenu, CanvasContextMenu } from './context-menu'
+import { SelectionToolbar } from './selection-toolbar'
 
 function CanvasInner() {
   const nodes = useWorkflowStore((s) => s.nodes)
@@ -64,6 +66,9 @@ function CanvasInner() {
         snapToGrid={snapToGrid}
         snapGrid={[gridSize, gridSize]}
         fitView
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        multiSelectionKeyCode="Shift"
         deleteKeyCode={['Delete', 'Backspace']}
         className="bg-background"
         onPaneClick={() => { closeMenu(); setSelectedNodeForConfig(null) }}
@@ -75,6 +80,7 @@ function CanvasInner() {
           nodeColor="#3b82f6"
           maskColor="rgba(0, 0, 0, 0.7)"
         />
+        <SelectionToolbar />
       </ReactFlow>
 
       {menu && (
