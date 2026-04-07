@@ -1,15 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useTerminalStore } from '@/stores/terminal.store'
-import { executeWorkflow } from '@/execution/engine'
-import type { ExecutionContext } from '@/types/node'
-import { nanoid } from 'nanoid'
-import { ensureConnected, sendMessage } from '@/lib/ws-client'
-
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 3) + '...' : s
-}
+import { ensureConnected, addMessageHandler } from '@/lib/ws-client'
 
 export function useRunWorkflow() {
   const nodes = useWorkflowStore((s) => s.nodes)
@@ -23,82 +16,86 @@ export function useRunWorkflow() {
   const addTab = useTerminalStore((s) => s.addTab)
   const updateTabStatus = useTerminalStore((s) => s.updateTabStatus)
 
+  // Listen to WS execution events
+  useEffect(() => {
+    ensureConnected()
+
+    const removeHandler = addMessageHandler((msg) => {
+      switch (msg.type) {
+        case 'execution:node-start':
+          setNodeRunning(msg.nodeId as string)
+          break
+        case 'execution:node-complete':
+          setNodeComplete(msg.nodeId as string, msg.result as Record<string, unknown>)
+          break
+        case 'execution:node-error':
+          setNodeError(msg.nodeId as string, msg.error as string)
+          break
+        case 'execution:complete':
+          completeExecution(msg.status as 'success' | 'error')
+          break
+        case 'execution:session-created':
+          // Server created a streaming session for a script node — add terminal tab
+          addTab({
+            sessionId: msg.sessionId as string,
+            title: msg.title as string,
+            status: 'running',
+          })
+          break
+        case 'pty:exit':
+          updateTabStatus(msg.sessionId as string, 'exited', msg.exitCode as number)
+          break
+      }
+    })
+
+    return removeHandler
+  }, [setNodeRunning, setNodeComplete, setNodeError, completeExecution, updateTabStatus])
+
   const run = useCallback(async () => {
     if (status === 'running') return
     if (nodes.length === 0) return
 
-    const executionId = nanoid()
-    const abortController = new AbortController()
-
-    startExecution(executionId, nodes.map((n) => n.id))
-
-    // Ensure WebSocket is connected for streaming
     ensureConnected()
 
-    const context: ExecutionContext = {
-      executionId,
-      signal: abortController.signal,
-      ws: null as unknown as WebSocket,
-      serverApi: {
-        async runScript(params) {
-          const title = truncate(params.command, 40)
+    // Build the execution payload from current canvas state
+    const execNodes = nodes.map((n) => ({
+      id: n.id,
+      typeId: n.data.definition.id,
+      label: n.data.label,
+      config: n.data.config,
+      ports: n.data.definition.ports,
+    }))
 
-          // 1. Create streaming session (returns immediately with sessionId)
-          const createRes = await fetch('/api/v1/pty/sessions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              command: params.command,
-              shell: params.shell,
-              cwd: params.cwd,
-              title,
-            }),
-          })
+    const execEdges = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      sourceHandle: e.sourceHandle ?? '',
+      target: e.target,
+      targetHandle: e.targetHandle ?? '',
+    }))
 
-          if (!createRes.ok) {
-            const err = await createRes.json()
-            throw new Error(err.error || 'Failed to create session')
-          }
+    // Optimistic UI: mark all nodes as pending
+    startExecution('pending', nodes.map((n) => n.id))
 
-          const { sessionId } = await createRes.json()
+    try {
+      const res = await fetch('/api/v1/execution/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodes: execNodes, edges: execEdges }),
+      })
 
-          // 2. Subscribe to WS stream and add terminal tab
-          sendMessage({ type: 'pty:subscribe', sessionId })
-          addTab({ sessionId, title, status: 'running' })
-
-          // 3. Wait for result (blocks until process exits, while WS streams output)
-          const resultRes = await fetch(`/api/v1/pty/sessions/${sessionId}/result`)
-          const result = await resultRes.json()
-
-          // 4. Update tab status
-          updateTabStatus(sessionId, 'exited', result.exitCode)
-
-          return {
-            exitCode: result.exitCode,
-            stdout: result.stdout,
-            stderr: result.stderr,
-          }
-        },
-        async createPtySession(params) {
-          const res = await fetch('/api/v1/pty/sessions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(params),
-          })
-          return res.json()
-        },
-      },
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Execution failed:', err.error)
+        // completeExecution is already called via WS event
+      }
+      // Result comes back after execution completes, but UI is already
+      // updated via WS events (node-start, node-complete, session-created, etc.)
+    } catch (err) {
+      console.error('Execution failed:', err)
+      completeExecution('error')
     }
-
-    await executeWorkflow(nodes, edges, context, {
-      onNodeStart: setNodeRunning,
-      onNodeComplete: (nodeId, outputs) => {
-        setNodeComplete(nodeId, outputs as Record<string, unknown>)
-      },
-      onNodeError: setNodeError,
-      onComplete: completeExecution,
-    })
-  }, [nodes, edges, status, startExecution, setNodeRunning, setNodeComplete, setNodeError, completeExecution, addTab, updateTabStatus])
+  }, [nodes, edges, status, startExecution, completeExecution, addTab])
 
   return { run, status }
 }

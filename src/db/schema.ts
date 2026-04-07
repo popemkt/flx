@@ -92,7 +92,7 @@ export type NewNodeType = typeof nodeTypes.$inferInsert
 
 export const executionHistory = sqliteTable('execution_history', {
   id: text('id').primaryKey(),
-  workflowId: text('workflow_id').notNull().references(() => workflows.id, { onDelete: 'cascade' }),
+  workflowId: text('workflow_id'),  // nullable for ephemeral (non-persisted) executions
   status: text('status', { enum: ['pending', 'running', 'success', 'error', 'cancelled'] }).notNull(),
   startedAt: integer('started_at', { mode: 'timestamp' }).notNull(),
   completedAt: integer('completed_at', { mode: 'timestamp' }),

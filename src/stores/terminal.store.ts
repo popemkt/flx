@@ -45,11 +45,17 @@ export const useTerminalStore = create<TerminalState & TerminalActions>((set) =>
     }),
 
   addTab: (tab) =>
-    set((s) => ({
-      tabs: [...s.tabs, tab],
-      activeTabId: tab.sessionId,
-      isOpen: true,
-    })),
+    set((s) => {
+      // Deduplicate by sessionId
+      if (s.tabs.some((t) => t.sessionId === tab.sessionId)) {
+        return { activeTabId: tab.sessionId, isOpen: true }
+      }
+      return {
+        tabs: [...s.tabs, tab],
+        activeTabId: tab.sessionId,
+        isOpen: true,
+      }
+    }),
 
   removeTab: (sessionId) =>
     set((s) => {

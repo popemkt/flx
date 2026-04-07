@@ -18,6 +18,7 @@ export type ServerMessage =
   | { type: 'execution:node-complete'; executionId: string; nodeId: string; result: Record<string, unknown> }
   | { type: 'execution:node-error'; executionId: string; nodeId: string; error: string }
   | { type: 'execution:complete'; executionId: string; status: 'success' | 'error' }
+  | { type: 'execution:session-created'; executionId: string; nodeId: string; sessionId: string; title: string }
   | { type: 'node-types:updated'; added: string[]; removed: string[] }
   | { type: 'error'; message: string }
 
@@ -128,6 +129,20 @@ function handleClientMessage(ws: WebSocket, msg: ClientMessage) {
     case 'execution:unsubscribe':
       // TODO: Phase 5+ execution streaming
       break
+  }
+}
+
+/** Auto-subscribe all connected clients to a session (for execution-created sessions) */
+export function subscribeAllToSession(sessionId: string): void {
+  let subs = sessionSubscriptions.get(sessionId)
+  if (!subs) {
+    subs = new Set()
+    sessionSubscriptions.set(sessionId, subs)
+  }
+  for (const client of clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      subs.add(client)
+    }
   }
 }
 
