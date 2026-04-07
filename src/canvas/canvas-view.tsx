@@ -14,6 +14,7 @@ import '@xyflow/react/dist/style.css'
 
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { useCanvasStore } from '@/stores/canvas.store'
+import type { NodeMouseHandler } from '@xyflow/react'
 import { getReactFlowNodeTypes, getReactFlowEdgeTypes } from './node-types-registry'
 import { isValidConnection } from './edge-validators'
 import { useCanvasContextMenu, CanvasContextMenu } from './context-menu'
@@ -29,6 +30,14 @@ function CanvasInner() {
 
   const { screenToFlowPosition } = useReactFlow()
   const { menu, onContextMenu, close: closeMenu } = useCanvasContextMenu()
+  const setSelectedNodeForConfig = useCanvasStore((s) => s.setSelectedNodeForConfig)
+
+  const onNodeClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      setSelectedNodeForConfig(node.id)
+    },
+    [setSelectedNodeForConfig],
+  )
 
   const nodeTypes = useMemo(() => getReactFlowNodeTypes(), [])
   const edgeTypes = useMemo(() => getReactFlowEdgeTypes(), [])
@@ -48,6 +57,7 @@ function CanvasInner() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         isValidConnection={isValidConnection}
@@ -56,7 +66,7 @@ function CanvasInner() {
         fitView
         deleteKeyCode={['Delete', 'Backspace']}
         className="bg-background"
-        onPaneClick={closeMenu}
+        onPaneClick={() => { closeMenu(); setSelectedNodeForConfig(null) }}
       >
         <Background variant={BackgroundVariant.Dots} gap={gridSize} size={1} color="#333" />
         <Controls className="!bg-card !border-border !shadow-md [&_button]:!bg-card [&_button]:!border-border [&_button]:!text-foreground" />

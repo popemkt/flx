@@ -3,6 +3,7 @@ import { cn } from '@/lib/cn'
 import { PortHandle } from './port-handle'
 import { NodeStatus } from './node-status'
 import { useNodeExecutionState } from '@/stores/execution.store'
+import { useCanvasStore } from '@/stores/canvas.store'
 import type { FlxNodeDefinition } from '@/types/node'
 
 interface BaseNodeShellProps {
@@ -15,16 +16,77 @@ interface BaseNodeShellProps {
 
 export function BaseNodeShell({ id, definition, label, selected, children }: BaseNodeShellProps) {
   const { status } = useNodeExecutionState(id)
+  const viewMode = useCanvasStore((s) => s.viewMode)
+  const setSelectedNodeForConfig = useCanvasStore((s) => s.setSelectedNodeForConfig)
+  const selectedNodeForConfig = useCanvasStore((s) => s.selectedNodeForConfig)
 
+  const isCompact = viewMode === 'compact'
+  const isConfigTarget = selectedNodeForConfig === id
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedNodeForConfig(id)
+  }
+
+  if (isCompact) {
+    return (
+      <div
+        className={cn(
+          'rounded-lg border bg-card shadow-md cursor-pointer transition-all',
+          selected && 'ring-2 ring-ring',
+          isConfigTarget && 'ring-2 ring-primary',
+          status === 'running' && 'ring-2 ring-blue-500',
+          status === 'success' && 'ring-2 ring-green-500',
+          status === 'error' && 'ring-2 ring-red-500',
+        )}
+        onDoubleClick={handleDoubleClick}
+      >
+        {/* Compact header */}
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg"
+          style={{ borderLeftColor: definition.color ?? '#6b7280', borderLeftWidth: 3 }}
+        >
+          <span className="text-xs font-medium truncate flex-1">{label}</span>
+          <NodeStatus nodeId={id} />
+        </div>
+
+        {/* Hidden port handles (still needed for edges) */}
+        {definition.ports.inputs.map((port) => (
+          <PortHandle
+            key={port.id}
+            type="target"
+            portId={port.id}
+            dataType={port.dataType}
+            label=""
+            position={Position.Left}
+          />
+        ))}
+        {definition.ports.outputs.map((port) => (
+          <PortHandle
+            key={port.id}
+            type="source"
+            portId={port.id}
+            dataType={port.dataType}
+            label=""
+            position={Position.Right}
+          />
+        ))}
+      </div>
+    )
+  }
+
+  // Expanded mode (original)
   return (
     <div
       className={cn(
         'rounded-lg border bg-card shadow-md min-w-[180px] max-w-[280px]',
         selected && 'ring-2 ring-ring',
+        isConfigTarget && 'ring-2 ring-primary',
         status === 'running' && 'ring-2 ring-blue-500',
         status === 'success' && 'ring-2 ring-green-500',
         status === 'error' && 'ring-2 ring-red-500',
       )}
+      onDoubleClick={handleDoubleClick}
     >
       {/* Header */}
       <div

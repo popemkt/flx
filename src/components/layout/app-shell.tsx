@@ -2,11 +2,13 @@ import { CanvasView } from '@/canvas/canvas-view'
 import { useRunWorkflow } from '@/hooks/use-execution'
 import { useExecutionStore } from '@/stores/execution.store'
 import { useTerminalStore } from '@/stores/terminal.store'
+import { useCanvasStore } from '@/stores/canvas.store'
 import { CommandPalette } from '@/components/command-palette/command-palette'
 import { TerminalPanel } from '@/components/terminal/terminal-panel'
+import { NodeConfigSidebar } from '@/components/layout/node-config-sidebar'
 import { useCommandPaletteStore } from '@/stores/command-palette.store'
 import { usePersistence } from '@/hooks/use-persistence'
-import { Play, Square, Command, Terminal } from 'lucide-react'
+import { Play, Square, Command, Terminal, Maximize2, Minimize2 } from 'lucide-react'
 import { useEffect } from 'react'
 
 export function AppShell() {
@@ -17,6 +19,8 @@ export function AppShell() {
   const toggleTerminal = useTerminalStore((s) => s.togglePanel)
   const terminalTabs = useTerminalStore((s) => s.tabs)
   const terminalOpen = useTerminalStore((s) => s.isOpen)
+  const viewMode = useCanvasStore((s) => s.viewMode)
+  const toggleViewMode = useCanvasStore((s) => s.toggleViewMode)
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -33,10 +37,14 @@ export function AppShell() {
         e.preventDefault()
         toggleTerminal()
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
+        e.preventDefault()
+        toggleViewMode()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [openPalette, run, toggleTerminal])
+  }, [openPalette, run, toggleTerminal, toggleViewMode])
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
@@ -46,6 +54,24 @@ export function AppShell() {
         <span className="text-xs text-muted-foreground">workflow builder</span>
 
         <div className="flex-1" />
+
+        {/* View mode toggle */}
+        <button
+          onClick={toggleViewMode}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
+            viewMode === 'compact'
+              ? 'text-foreground bg-muted'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+          }`}
+          title={`${viewMode === 'compact' ? 'Expanded' : 'Compact'} view (Ctrl+M)`}
+        >
+          {viewMode === 'compact' ? (
+            <Maximize2 className="w-3 h-3" />
+          ) : (
+            <Minimize2 className="w-3 h-3" />
+          )}
+          <span>{viewMode === 'compact' ? 'Compact' : 'Expanded'}</span>
+        </button>
 
         {/* Terminal toggle */}
         <button
@@ -94,10 +120,13 @@ export function AppShell() {
         )}
       </header>
 
-      {/* Canvas */}
-      <main className="flex-1 min-h-0">
-        <CanvasView />
-      </main>
+      {/* Main content area: canvas + optional sidebar */}
+      <div className="flex-1 min-h-0 flex">
+        <main className="flex-1 min-w-0">
+          <CanvasView />
+        </main>
+        <NodeConfigSidebar />
+      </div>
 
       {/* Terminal Panel */}
       <TerminalPanel />

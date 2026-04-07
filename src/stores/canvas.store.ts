@@ -8,6 +8,8 @@ interface CanvasState {
   selectedEdgeIds: string[]
   snapToGrid: boolean
   gridSize: number
+  viewMode: 'compact' | 'expanded'
+  selectedNodeForConfig: string | null
 }
 
 interface CanvasActions {
@@ -18,6 +20,8 @@ interface CanvasActions {
   clearSelection: () => void
   toggleSnapToGrid: () => void
   setGridSize: (size: number) => void
+  toggleViewMode: () => void
+  setSelectedNodeForConfig: (nodeId: string | null) => void
 }
 
 export type CanvasStore = CanvasState & CanvasActions
@@ -31,6 +35,8 @@ export const useCanvasStore = create<CanvasStore>()(
       selectedEdgeIds: [],
       snapToGrid: true,
       gridSize: 20,
+      viewMode: 'compact',
+      selectedNodeForConfig: null,
 
       setActiveCanvas: (id) => set({ activeCanvasId: id }),
       setViewport: (viewport) => set({ viewport }),
@@ -39,6 +45,8 @@ export const useCanvasStore = create<CanvasStore>()(
       clearSelection: () => set({ selectedNodeIds: [], selectedEdgeIds: [] }),
       toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
       setGridSize: (size) => set({ gridSize: size }),
+      toggleViewMode: () => set((s) => ({ viewMode: s.viewMode === 'compact' ? 'expanded' : 'compact' })),
+      setSelectedNodeForConfig: (nodeId) => set({ selectedNodeForConfig: nodeId }),
     }),
     {
       name: 'flx-canvas',
