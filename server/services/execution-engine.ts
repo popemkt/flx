@@ -214,18 +214,36 @@ export async function executeWorkflow(
     let inputError: string | undefined
 
     for (const inputPort of node.ports.inputs) {
-      const edge = edges.find(
+      // Find all edges targeting this port (multi ports can have several)
+      const portEdges = edges.filter(
         (e) => e.target === nodeId && e.targetHandle.startsWith(inputPort.id + '::'),
       )
 
-      if (edge) {
-        const sourceOutputs = dataBus.get(edge.source)
-        const sourcePortId = edge.sourceHandle.split('::')[0]
-        const sourcePortType = edge.sourceHandle.split('::')[1] as PortDataType
-
-        if (sourceOutputs && sourcePortId && sourcePortId in sourceOutputs) {
-          const rawValue = sourceOutputs[sourcePortId]
-          inputs[inputPort.id] = coerceValue(rawValue, sourcePortType, inputPort.dataType)
+      if (portEdges.length > 0) {
+        if (inputPort.multi && portEdges.length > 1) {
+          // Multi-input: collect all values and join with newlines
+          const values: string[] = []
+          for (const edge of portEdges) {
+            const sourceOutputs = dataBus.get(edge.source)
+            const sourcePortId = edge.sourceHandle.split('::')[0]
+            const sourcePortType = edge.sourceHandle.split('::')[1] as PortDataType
+            if (sourceOutputs && sourcePortId && sourcePortId in sourceOutputs) {
+              const rawValue = sourceOutputs[sourcePortId]
+              const coerced = coerceValue(rawValue, sourcePortType, inputPort.dataType)
+              values.push(String(coerced))
+            }
+          }
+          inputs[inputPort.id] = values.join('\n')
+        } else {
+          // Single-input: use the first (only) edge
+          const edge = portEdges[0]
+          const sourceOutputs = dataBus.get(edge.source)
+          const sourcePortId = edge.sourceHandle.split('::')[0]
+          const sourcePortType = edge.sourceHandle.split('::')[1] as PortDataType
+          if (sourceOutputs && sourcePortId && sourcePortId in sourceOutputs) {
+            const rawValue = sourceOutputs[sourcePortId]
+            inputs[inputPort.id] = coerceValue(rawValue, sourcePortType, inputPort.dataType)
+          }
         }
       } else if (inputPort.defaultValue !== undefined) {
         inputs[inputPort.id] = inputPort.defaultValue

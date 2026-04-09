@@ -12,7 +12,7 @@ export const definition: FlxNodeDefinition = {
   color: '#a855f7',
   ports: {
     inputs: [
-      { id: 'options', label: 'Options', dataType: 'string', required: false, description: 'Newline or comma-separated list of options (from script output)' },
+      { id: 'options', label: 'Options', dataType: 'string', required: false, multi: true, description: 'Newline or comma-separated list of options (from script output)' },
     ],
     outputs: [{ id: 'value', label: 'Value', dataType: 'enum' }],
   },

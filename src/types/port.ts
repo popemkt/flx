@@ -22,6 +22,7 @@ export interface PortDefinition {
   enumValues?: string[]
   defaultValue?: PortValue
   required?: boolean
+  multi?: boolean  // accept multiple connections, values are joined with newlines
   description?: string
 }
 
