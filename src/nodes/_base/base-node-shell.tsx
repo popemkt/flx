@@ -4,7 +4,8 @@ import { PortHandle } from './port-handle'
 import { NodeStatus } from './node-status'
 import { useNodeExecutionState } from '@/stores/execution.store'
 import { useCanvasStore } from '@/stores/canvas.store'
-import { Type, Hash, List, Terminal, Eye, Cpu, type LucideIcon } from 'lucide-react'
+import { Type, Hash, List, Terminal, Eye, Cpu, Play, type LucideIcon } from 'lucide-react'
+import { useRunWorkflow } from '@/hooks/use-execution'
 import type { FlxNodeDefinition } from '@/types/node'
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -15,6 +16,22 @@ function NodeIcon({ name, color }: { name?: string; color?: string }) {
   const Icon = name ? ICON_MAP[name] : null
   if (!Icon) return null
   return <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: color ?? '#6b7280' }} />
+}
+
+function RunNodeButton({ nodeId }: { nodeId: string }) {
+  const { runNode, status } = useRunWorkflow()
+  return (
+    <button
+      className="p-0.5 rounded hover:bg-green-600/20 text-muted-foreground hover:text-green-400 transition-colors opacity-0 group-hover/node:opacity-100"
+      onClick={(e) => {
+        e.stopPropagation()
+        if (status !== 'running') runNode(nodeId)
+      }}
+      title="Run this node"
+    >
+      <Play className="w-3 h-3" />
+    </button>
+  )
 }
 
 interface BaseNodeShellProps {
@@ -43,7 +60,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
     return (
       <div
         className={cn(
-          'rounded-lg border bg-card shadow-md cursor-pointer transition-all',
+          'rounded-lg border bg-card shadow-md cursor-pointer transition-all group/node',
           selected && 'ring-2 ring-ring',
           isConfigTarget && 'ring-2 ring-primary',
           status === 'running' && 'ring-2 ring-blue-500',
@@ -59,6 +76,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
         >
           <NodeIcon name={definition.icon} color={definition.color} />
           <span className="text-xs font-medium truncate flex-1">{label}</span>
+          <RunNodeButton nodeId={id} />
           <NodeStatus nodeId={id} />
         </div>
 
@@ -91,7 +109,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
   return (
     <div
       className={cn(
-        'rounded-lg border bg-card shadow-md min-w-[180px] max-w-[280px]',
+        'rounded-lg border bg-card shadow-md min-w-[180px] max-w-[280px] group/node',
         selected && 'ring-2 ring-ring',
         isConfigTarget && 'ring-2 ring-primary',
         status === 'running' && 'ring-2 ring-blue-500',
@@ -107,6 +125,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
       >
         <NodeIcon name={definition.icon} color={definition.color} />
         <span className="text-xs font-medium truncate flex-1">{label}</span>
+        <RunNodeButton nodeId={id} />
         <NodeStatus nodeId={id} />
       </div>
 

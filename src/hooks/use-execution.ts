@@ -139,11 +139,19 @@ export function useRunWorkflow() {
     await executePayload(payload, sub.nodes.map((n) => n.id), startExecution, completeExecution)
   }, [nodes, edges, status, startExecution, completeExecution])
 
+  // Run a single node + its upstream deps
+  const runNode = useCallback(async (nodeId: string) => {
+    if (status === 'running') return
+    const sub = collectUpstreamSubgraph(new Set([nodeId]), nodes, edges)
+    const payload = buildExecPayload(sub.nodes, sub.edges)
+    await executePayload(payload, sub.nodes.map((n) => n.id), startExecution, completeExecution)
+  }, [nodes, edges, status, startExecution, completeExecution])
+
   // Compute selected node count for UI
   const selectedCount = useMemo(
     () => nodes.filter((n) => n.selected).length,
     [nodes],
   )
 
-  return { run, runSelection, status, selectedCount }
+  return { run, runSelection, runNode, status, selectedCount }
 }

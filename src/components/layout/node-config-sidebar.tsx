@@ -61,14 +61,18 @@ function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
 
       {definition.id === 'enum-selector' && (
         <>
-          <ConfigField label="Options (comma-separated)">
-            <input
-              className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+          <ConfigField label="Static Options (comma or newline separated)">
+            <textarea
+              className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring resize-y min-h-[40px]"
               value={String(config.options ?? '')}
               onChange={(e) => setConfig('options', e.target.value)}
               placeholder="option1, option2, option3"
+              rows={2}
             />
           </ConfigField>
+          <div className="text-[10px] text-muted-foreground -mt-2">
+            Pipe a script's stdout to the Options input port for dynamic options.
+          </div>
           <ConfigField label="Selected">
             <select
               className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none"
@@ -77,7 +81,7 @@ function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
             >
               <option value="">Select...</option>
               {String(config.options ?? '')
-                .split(',')
+                .split(/[,\n]/)
                 .map((o) => o.trim())
                 .filter(Boolean)
                 .map((opt) => (

@@ -113,9 +113,17 @@ async function runNode(
       return { outputs: { value: parseFloat(String(config.value ?? '0')) || 0 } }
 
     case 'enum-selector': {
-      const options = String(config.options ?? '').split(',').map((s) => s.trim()).filter(Boolean)
-      const selected = String(config.selected ?? options[0] ?? '')
-      return { outputs: { value: selected } }
+      // Dynamic options from piped input take priority over static config
+      let options: string[]
+      if (inputs.options) {
+        const raw = String(inputs.options).trim()
+        options = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+      } else {
+        options = String(config.options ?? '').split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+      }
+      const selected = String(config.selected ?? '')
+      const value = selected && options.includes(selected) ? selected : (options[0] ?? '')
+      return { outputs: { value } }
     }
 
     case 'output-display':
