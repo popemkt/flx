@@ -38,23 +38,26 @@ function deserializeNodes(
     config: Record<string, unknown> | null
   }>,
 ): Node<FlxNodeData>[] {
-  return dbNodes
-    .map((n) => {
-      const definition = getNodeDefinition(n.nodeTypeId)
-      if (!definition) return null
-      return {
-        id: n.id,
-        type: n.nodeTypeId,
-        position: { x: n.positionX, y: n.positionY },
-        data: {
-          definition,
-          config: n.config ?? definition.defaultConfig ?? {},
-          label: n.label,
-          workflowId: '',
-        },
-      } satisfies Node<FlxNodeData>
+  const nodes: Node<FlxNodeData>[] = []
+
+  for (const n of dbNodes) {
+    const definition = getNodeDefinition(n.nodeTypeId)
+    if (!definition) continue
+
+    nodes.push({
+      id: n.id,
+      type: n.nodeTypeId,
+      position: { x: n.positionX, y: n.positionY },
+      data: {
+        definition,
+        config: n.config ?? definition.defaultConfig ?? {},
+        label: n.label,
+        workflowId: '',
+      },
     })
-    .filter((n): n is Node<FlxNodeData> => n !== null)
+  }
+
+  return nodes
 }
 
 /** Deserialize DB rows back to React Flow edges */
@@ -87,6 +90,8 @@ export function usePersistence() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedRef = useRef(false)
   const skipNextSave = useRef(false)
+  const saveInFlightRef = useRef(false)
+  const queuedSnapshotRef = useRef<{ nodes: ReturnType<typeof serializeNodes>; edges: ReturnType<typeof serializeEdges> } | null>(null)
 
   // Load canvas state on mount
   useEffect(() => {
@@ -115,31 +120,53 @@ export function usePersistence() {
   }, [setNodes, setEdges, setActiveCanvas])
 
   // Debounced save on changes
-  const save = useCallback(() => {
+  const save = useCallback(async (snapshot: { nodes: ReturnType<typeof serializeNodes>; edges: ReturnType<typeof serializeEdges> }) => {
     if (!canvasId) return
     if (skipNextSave.current) {
       skipNextSave.current = false
       return
     }
 
-    const currentNodes = useWorkflowStore.getState().nodes
-    const currentEdges = useWorkflowStore.getState().edges
+    if (saveInFlightRef.current) {
+      queuedSnapshotRef.current = snapshot
+      return
+    }
 
-    fetch(`/api/v1/canvases/${canvasId}/state`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nodes: serializeNodes(currentNodes),
-        edges: serializeEdges(currentEdges),
-      }),
-    }).catch((err) => console.error('[persistence] save failed:', err))
+    saveInFlightRef.current = true
+
+    try {
+      const res = await fetch(`/api/v1/canvases/${canvasId}/state`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot),
+      })
+      if (!res.ok) {
+        throw new Error(`Save failed with status ${res.status}`)
+      }
+    } catch (err) {
+      console.error('[persistence] save failed:', err)
+    } finally {
+      saveInFlightRef.current = false
+      const queued = queuedSnapshotRef.current
+      queuedSnapshotRef.current = null
+      if (queued) {
+        void save(queued)
+      }
+    }
   }, [canvasId])
 
   useEffect(() => {
     if (!canvasId) return
 
+    const snapshot = {
+      nodes: serializeNodes(nodes),
+      edges: serializeEdges(edges),
+    }
+
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(save, 500)
+    saveTimerRef.current = setTimeout(() => {
+      void save(snapshot)
+    }, 500)
 
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)

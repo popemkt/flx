@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { runScript } from '../services/script-executor.js'
 import { executeWorkflow, type ExecNode, type ExecEdge, type ExecutionEvent } from '../services/execution-engine.js'
-import { broadcast, subscribeAllToSession } from '../ws.js'
+import { publishToExecutionSubscribers } from '../ws.js'
 import { db, schema } from '../db.js'
 import { eq, desc } from 'drizzle-orm'
 
 const router = Router()
+const activeExecutions = new Map<string, AbortController>()
 
 // Keep legacy endpoint for backwards compatibility
 router.post('/execution/run-script', async (req, res) => {
@@ -31,29 +32,41 @@ router.post('/execution/run-script', async (req, res) => {
 
 /** Start a server-side workflow execution */
 router.post('/execution/run', async (req, res) => {
-  const { nodes, edges, workflowId } = req.body as {
+  const { nodes, edges, workflowId, executionId } = req.body as {
     nodes: ExecNode[]
     edges: ExecEdge[]
     workflowId?: string
+    executionId?: string
   }
 
   if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
     res.status(400).json({ error: 'nodes array is required' })
     return
   }
+  if (!executionId) {
+    res.status(400).json({ error: 'executionId is required' })
+    return
+  }
+  if (activeExecutions.has(executionId)) {
+    res.status(409).json({ error: 'execution is already running' })
+    return
+  }
+
+  const controller = new AbortController()
+  activeExecutions.set(executionId, controller)
 
   // Stream progress events over WebSocket
   const onProgress = (event: ExecutionEvent) => {
     switch (event.type) {
       case 'node-start':
-        broadcast({
+        publishToExecutionSubscribers(event.executionId, {
           type: 'execution:node-start',
           executionId: event.executionId,
           nodeId: event.nodeId,
         })
         break
       case 'node-complete':
-        broadcast({
+        publishToExecutionSubscribers(event.executionId, {
           type: 'execution:node-complete',
           executionId: event.executionId,
           nodeId: event.nodeId,
@@ -61,7 +74,7 @@ router.post('/execution/run', async (req, res) => {
         })
         break
       case 'node-error':
-        broadcast({
+        publishToExecutionSubscribers(event.executionId, {
           type: 'execution:node-error',
           executionId: event.executionId,
           nodeId: event.nodeId,
@@ -69,9 +82,7 @@ router.post('/execution/run', async (req, res) => {
         })
         break
       case 'session-created':
-        // Auto-subscribe all connected clients so they receive stream data
-        subscribeAllToSession(event.sessionId)
-        broadcast({
+        publishToExecutionSubscribers(event.executionId, {
           type: 'execution:session-created',
           executionId: event.executionId,
           nodeId: event.nodeId,
@@ -80,7 +91,7 @@ router.post('/execution/run', async (req, res) => {
         })
         break
       case 'complete':
-        broadcast({
+        publishToExecutionSubscribers(event.executionId, {
           type: 'execution:complete',
           executionId: event.executionId,
           status: event.status,
@@ -91,14 +102,29 @@ router.post('/execution/run', async (req, res) => {
 
   try {
     const result = await executeWorkflow(nodes, edges ?? [], {
+      executionId,
       workflowId,
       onProgress,
+      signal: controller.signal,
     })
     res.json(result)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     res.status(500).json({ error: msg })
+  } finally {
+    activeExecutions.delete(executionId)
   }
+})
+
+router.post('/execution/:id/cancel', (req, res) => {
+  const controller = activeExecutions.get(req.params.id)
+  if (!controller) {
+    res.status(404).json({ error: 'Execution not found or already finished' })
+    return
+  }
+
+  controller.abort()
+  res.status(202).json({ ok: true })
 })
 
 /** Get execution details by ID */

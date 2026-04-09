@@ -41,7 +41,7 @@ interface NodeLog {
 
 export interface ExecutionResult {
   executionId: string
-  status: 'success' | 'error'
+  status: 'success' | 'error' | 'cancelled'
   nodeLogs: Record<string, NodeLog>
   startedAt: number
   completedAt: number
@@ -56,7 +56,7 @@ export type ExecutionEvent =
   | { type: 'node-complete'; executionId: string; nodeId: string; outputs: Record<string, unknown> }
   | { type: 'node-error'; executionId: string; nodeId: string; error: string }
   | { type: 'session-created'; executionId: string; nodeId: string; sessionId: string; title: string }
-  | { type: 'complete'; executionId: string; status: 'success' | 'error' }
+  | { type: 'complete'; executionId: string; status: 'success' | 'error' | 'cancelled' }
 
 // ─── Topo sort (server-side copy, no React deps) ───────────────────────────
 
@@ -103,6 +103,7 @@ async function runNode(
   typeId: string,
   inputs: Record<string, PortValue>,
   config: Record<string, unknown>,
+  signal?: AbortSignal,
   onSessionCreated?: (sessionId: string, title: string) => void,
 ): Promise<{ outputs: Record<string, PortValue>; sessionId?: string }> {
   switch (typeId) {
@@ -142,7 +143,11 @@ async function runNode(
       // Create streaming session (output will be sent to WS subscribers)
       const sessionId = sessionManager.createScriptSession({ command, shell, cwd, title })
       onSessionCreated?.(sessionId, title)
-      const result = await sessionManager.waitForExit(sessionId)
+      const result = await sessionManager.waitForExit(sessionId, signal)
+
+      if (signal?.aborted) {
+        throw new Error('Execution cancelled')
+      }
 
       return {
         outputs: {
@@ -165,12 +170,13 @@ export async function executeWorkflow(
   nodes: ExecNode[],
   edges: ExecEdge[],
   options?: {
+    executionId?: string
     workflowId?: string
     onProgress?: ProgressCallback
     signal?: AbortSignal
   },
 ): Promise<ExecutionResult> {
-  const executionId = nanoid()
+  const executionId = options?.executionId ?? nanoid()
   const startedAt = Date.now()
   const nodeLogs: Record<string, NodeLog> = {}
   const onProgress = options?.onProgress
@@ -193,12 +199,12 @@ export async function executeWorkflow(
   )
 
   const dataBus = new Map<string, Record<string, PortValue>>()
-  let finalStatus: 'success' | 'error' = 'success'
+  let finalStatus: 'success' | 'error' | 'cancelled' = 'success'
   let finalError: string | undefined
 
   for (const nodeId of sortedIds) {
     if (options?.signal?.aborted) {
-      finalStatus = 'error'
+      finalStatus = 'cancelled'
       finalError = 'Execution cancelled'
       break
     }
@@ -274,7 +280,7 @@ export async function executeWorkflow(
 
     // Execute node
     try {
-      const { outputs, sessionId } = await runNode(node.typeId, inputs, node.config, (sid, title) => {
+      const { outputs, sessionId } = await runNode(node.typeId, inputs, node.config, options?.signal, (sid, title) => {
         onProgress?.({ type: 'session-created', executionId, nodeId, sessionId: sid, title })
       })
       dataBus.set(nodeId, outputs)
@@ -297,6 +303,7 @@ export async function executeWorkflow(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       const completedAt = Date.now()
+      const cancelled = options?.signal?.aborted || msg === 'Execution cancelled'
 
       nodeLogs[nodeId] = {
         nodeId,
@@ -312,7 +319,7 @@ export async function executeWorkflow(
       }
 
       onProgress?.({ type: 'node-error', executionId, nodeId, error: msg })
-      finalStatus = 'error'
+      finalStatus = cancelled ? 'cancelled' : 'error'
       finalError = msg
       break
     }

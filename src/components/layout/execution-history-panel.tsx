@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { History, CheckCircle2, XCircle, Clock, ChevronDown, ChevronRight, X } from 'lucide-react'
-import { cn } from '@/lib/cn'
 
 interface NodeLog {
   nodeId: string

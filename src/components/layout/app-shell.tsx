@@ -1,6 +1,5 @@
 import { CanvasView } from '@/canvas/canvas-view'
 import { useRunWorkflow } from '@/hooks/use-execution'
-import { useExecutionStore } from '@/stores/execution.store'
 import { useTerminalStore } from '@/stores/terminal.store'
 import { useCanvasStore } from '@/stores/canvas.store'
 import { CommandPalette } from '@/components/command-palette/command-palette'
@@ -14,8 +13,7 @@ import { useEffect, useState } from 'react'
 
 export function AppShell() {
   usePersistence()
-  const { run, status } = useRunWorkflow()
-  const reset = useExecutionStore((s) => s.reset)
+  const { run, cancel, status } = useRunWorkflow()
   const openPalette = useCommandPaletteStore((s) => s.open)
   const toggleTerminal = useTerminalStore((s) => s.togglePanel)
   const terminalTabs = useTerminalStore((s) => s.tabs)
@@ -119,7 +117,7 @@ export function AppShell() {
         {/* Run / Stop */}
         {status === 'running' ? (
           <button
-            onClick={reset}
+            onClick={cancel}
             className="flex items-center gap-1.5 px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors"
           >
             <Square className="w-3 h-3" />

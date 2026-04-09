@@ -11,7 +11,7 @@ interface NodeExecutionState {
 interface ExecutionState {
   activeExecutionId: string | null
   nodeStates: Record<string, NodeExecutionState>
-  status: 'idle' | 'running' | 'success' | 'error'
+  status: 'idle' | 'running' | 'success' | 'error' | 'cancelled'
 }
 
 interface ExecutionActions {
@@ -19,7 +19,7 @@ interface ExecutionActions {
   setNodeRunning: (nodeId: string) => void
   setNodeComplete: (nodeId: string, output: Record<string, unknown>) => void
   setNodeError: (nodeId: string, error: string) => void
-  completeExecution: (status: 'success' | 'error') => void
+  completeExecution: (status: 'success' | 'error' | 'cancelled') => void
   reset: () => void
 }
 

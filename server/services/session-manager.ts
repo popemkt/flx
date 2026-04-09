@@ -5,6 +5,7 @@ export interface Session {
   id: string
   title: string
   process: ChildProcess
+  buffer: string
   stdout: string
   stderr: string
   exitCode: number | null
@@ -49,6 +50,7 @@ class SessionManager {
       id,
       title: params.title ?? `Script ${id.slice(0, 6)}`,
       process: proc,
+      buffer: '',
       stdout: '',
       stderr: '',
       exitCode: null,
@@ -57,15 +59,18 @@ class SessionManager {
 
     proc.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
+      session.buffer += text
       session.stdout += text
       this.eventHandler?.onData(id, text)
     })
 
     proc.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString()
+      const colored = `\x1b[31m${text}\x1b[0m`
+      session.buffer += colored
       session.stderr += text
       // Stream stderr with ANSI red coloring
-      this.eventHandler?.onData(id, `\x1b[31m${text}\x1b[0m`)
+      this.eventHandler?.onData(id, colored)
     })
 
     proc.on('close', (code) => {
@@ -75,8 +80,10 @@ class SessionManager {
 
     proc.on('error', (err) => {
       session.exitCode = 1
+      const colored = `\x1b[31mError: ${err.message}\x1b[0m\r\n`
+      session.buffer += colored
       session.stderr += err.message
-      this.eventHandler?.onData(id, `\x1b[31mError: ${err.message}\x1b[0m\r\n`)
+      this.eventHandler?.onData(id, colored)
       this.eventHandler?.onExit(id, 1, session.stdout, session.stderr)
     })
 
@@ -94,6 +101,15 @@ class SessionManager {
 
   getSession(id: string): Session | undefined {
     return this.sessions.get(id)
+  }
+
+  getSessionReplay(id: string): { buffer: string; exitCode: number | null } | null {
+    const session = this.sessions.get(id)
+    if (!session) return null
+    return {
+      buffer: session.buffer,
+      exitCode: session.exitCode,
+    }
   }
 
   listSessions(): Array<{ id: string; title: string; exitCode: number | null; createdAt: number }> {
@@ -116,7 +132,7 @@ class SessionManager {
   }
 
   /** Wait for session to exit, returns stdout/stderr/exitCode */
-  waitForExit(id: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+  waitForExit(id: string, signal?: AbortSignal): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const session = this.sessions.get(id)
     if (!session) return Promise.reject(new Error(`Session ${id} not found`))
     if (session.exitCode !== null) {
@@ -127,7 +143,20 @@ class SessionManager {
       })
     }
     return new Promise((resolve) => {
+      const onAbort = () => {
+        this.killSession(id)
+      }
+
+      if (signal) {
+        if (signal.aborted) {
+          onAbort()
+        } else {
+          signal.addEventListener('abort', onAbort, { once: true })
+        }
+      }
+
       session.process.on('close', () => {
+        signal?.removeEventListener('abort', onAbort)
         resolve({
           stdout: session.stdout,
           stderr: session.stderr,

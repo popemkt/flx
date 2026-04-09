@@ -1,8 +1,9 @@
 type MessageHandler = (msg: Record<string, unknown>) => void
 
 let ws: WebSocket | null = null
-let handlers = new Set<MessageHandler>()
+const handlers = new Set<MessageHandler>()
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let outboundQueue: string[] = []
 
 function getWsUrl(): string {
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -20,6 +21,10 @@ function connect() {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
+    for (const message of outboundQueue) {
+      ws?.send(message)
+    }
+    outboundQueue = []
   }
 
   ws.onmessage = (event) => {
@@ -57,7 +62,11 @@ export function addMessageHandler(handler: MessageHandler): () => void {
 }
 
 export function sendMessage(msg: Record<string, unknown>): void {
+  const payload = JSON.stringify(msg)
   if (ws?.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(msg))
+    ws.send(payload)
+    return
   }
+  outboundQueue.push(payload)
+  connect()
 }
