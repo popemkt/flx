@@ -37,9 +37,12 @@ data/
 
 # Testing
 .playwright-mcp/
+playwright-report/
+test-results/
 
 # Claude
 .claude/
 
 # Temp
 *.tmp
+.tmp/

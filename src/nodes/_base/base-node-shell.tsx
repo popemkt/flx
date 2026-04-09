@@ -59,6 +59,8 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
   if (isCompact) {
     return (
       <div
+        data-testid={`node-${id}`}
+        data-node-type={definition.id}
         className={cn(
           'rounded-lg border bg-card shadow-md cursor-pointer transition-all group/node',
           selected && 'ring-2 ring-ring',
@@ -108,6 +110,8 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
   // Expanded mode (original)
   return (
     <div
+      data-testid={`node-${id}`}
+      data-node-type={definition.id}
       className={cn(
         'rounded-lg border bg-card shadow-md min-w-[180px] max-w-[280px] group/node',
         selected && 'ring-2 ring-ring',

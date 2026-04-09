@@ -6,7 +6,7 @@ import { useRunWorkflow } from '@/hooks/use-execution'
 import { useCanvasStore } from '@/stores/canvas.store'
 import { useTerminalStore } from '@/stores/terminal.store'
 import { nanoid } from 'nanoid'
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import type { FlxNodeDefinition } from '@/types/node'
 import { Play, Plus, Minimize2, Maximize2, Terminal, History, Trash2, Copy } from 'lucide-react'
 
@@ -14,6 +14,13 @@ const groupHeadingClass =
   '[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider'
 const itemClass =
   'flex items-center gap-2 px-2 py-1.5 rounded text-sm cursor-pointer text-foreground data-[selected=true]:bg-accent'
+
+function getSpawnOffset(index: number) {
+  return {
+    x: (index % 4) * 36,
+    y: Math.floor(index / 4) * 28,
+  }
+}
 
 export function CommandPalette() {
   const isOpen = useCommandPaletteStore((s) => s.isOpen)
@@ -27,22 +34,20 @@ export function CommandPalette() {
   const setSelectedNodeForConfig = useCanvasStore((s) => s.setSelectedNodeForConfig)
   const toggleTerminal = useTerminalStore((s) => s.togglePanel)
   const { run } = useRunWorkflow()
-  const [definitions, setDefinitions] = useState<FlxNodeDefinition[]>([])
-
-  useEffect(() => {
-    if (isOpen) {
-      setDefinitions(getAllDefinitions())
-    }
-  }, [isOpen])
+  const definitions = useMemo<FlxNodeDefinition[]>(
+    () => (isOpen ? getAllDefinitions() : []),
+    [isOpen],
+  )
 
   const handleAddNode = (def: FlxNodeDefinition) => {
     const id = nanoid()
+    const offset = getSpawnOffset(nodes.length)
     addNode({
       id,
       type: def.id,
       position: {
-        x: -viewport.x + 400 + Math.random() * 100,
-        y: -viewport.y + 300 + Math.random() * 100,
+        x: -viewport.x + 400 + offset.x,
+        y: -viewport.y + 300 + offset.y,
       },
       data: {
         definition: def,
@@ -77,12 +82,14 @@ export function CommandPalette() {
       <div className="fixed inset-0 bg-black/50" onClick={close} />
 
       <Command
+        data-testid="command-palette"
         className="relative w-[480px] rounded-lg border bg-popover shadow-2xl overflow-hidden"
         onKeyDown={(e: React.KeyboardEvent) => {
           if (e.key === 'Escape') close()
         }}
       >
         <Command.Input
+          data-testid="command-palette-input"
           placeholder="Search commands..."
           className="w-full px-4 py-3 text-sm bg-transparent border-b outline-none placeholder:text-muted-foreground text-foreground"
           autoFocus

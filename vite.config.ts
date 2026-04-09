@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
+const apiPort = process.env.FLX_API_PORT ?? '3210'
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -11,14 +13,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3210',
+        target: `http://localhost:${apiPort}`,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:3210',
+        target: `ws://localhost:${apiPort}`,
         ws: true,
       },
     },

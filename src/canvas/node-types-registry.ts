@@ -11,7 +11,7 @@ import { CustomEdge } from './custom-edge'
 const registry = new Map<string, NodeTypeEntry>()
 
 // Register built-in nodes
-const builtins: Array<{ definition: FlxNodeDefinition; component: React.ComponentType<any>; runner: FlxNodeRunner }> = [
+const builtins: NodeTypeEntry[] = [
   { definition: textInput.definition, component: textInput.TextInputNode, runner: textInput.runner },
   { definition: numberInput.definition, component: numberInput.NumberInputNode, runner: numberInput.runner },
   { definition: enumSelector.definition, component: enumSelector.EnumSelectorNode, runner: enumSelector.runner },

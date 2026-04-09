@@ -59,6 +59,7 @@ export function AppShell() {
         {/* View mode toggle */}
         <button
           onClick={toggleViewMode}
+          aria-label="Toggle view mode"
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
             viewMode === 'compact'
               ? 'text-foreground bg-muted'
@@ -77,6 +78,7 @@ export function AppShell() {
         {/* History toggle */}
         <button
           onClick={() => setShowHistory((v) => !v)}
+          aria-label="Toggle execution history"
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
             showHistory
               ? 'text-foreground bg-muted'
@@ -90,6 +92,7 @@ export function AppShell() {
         {/* Terminal toggle */}
         <button
           onClick={toggleTerminal}
+          aria-label="Toggle terminal panel"
           className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors ${
             terminalOpen
               ? 'text-foreground bg-muted'
@@ -108,6 +111,7 @@ export function AppShell() {
         {/* Command palette trigger */}
         <button
           onClick={openPalette}
+          aria-label="Open command palette"
           className="flex items-center gap-1.5 px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <Command className="w-3 h-3" />
@@ -118,6 +122,7 @@ export function AppShell() {
         {status === 'running' ? (
           <button
             onClick={cancel}
+            aria-label="Stop workflow"
             className="flex items-center gap-1.5 px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors"
           >
             <Square className="w-3 h-3" />
@@ -126,6 +131,7 @@ export function AppShell() {
         ) : (
           <button
             onClick={run}
+            aria-label="Run workflow"
             className="flex items-center gap-1.5 px-3 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-medium transition-colors"
           >
             <Play className="w-3 h-3" />
