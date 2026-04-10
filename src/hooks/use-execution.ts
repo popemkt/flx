@@ -7,19 +7,27 @@ import type { Node, Edge } from '@xyflow/react'
 import type { FlxNodeData } from '@/types/node'
 import { nanoid } from 'nanoid'
 
+function isExecutableNode(node: Node<FlxNodeData>): boolean {
+  return node.data.definition.executable !== false
+}
+
 /** Walk backward from target nodes to find all upstream dependencies */
 function collectUpstreamSubgraph(
   targetIds: Set<string>,
   allNodes: Node<FlxNodeData>[],
   allEdges: Edge[],
 ): { nodes: Node<FlxNodeData>[]; edges: Edge[] } {
-  const included = new Set(targetIds)
-  const queue = [...targetIds]
+  const executableIds = new Set(
+    allNodes.filter((node) => isExecutableNode(node)).map((node) => node.id),
+  )
+  const filteredTargets = [...targetIds].filter((targetId) => executableIds.has(targetId))
+  const included = new Set(filteredTargets)
+  const queue = [...filteredTargets]
 
   while (queue.length > 0) {
     const nodeId = queue.shift()!
     for (const edge of allEdges) {
-      if (edge.target === nodeId && !included.has(edge.source)) {
+      if (edge.target === nodeId && executableIds.has(edge.source) && !included.has(edge.source)) {
         included.add(edge.source)
         queue.push(edge.source)
       }
@@ -32,21 +40,29 @@ function collectUpstreamSubgraph(
 }
 
 function buildExecPayload(nodes: Node<FlxNodeData>[], edges: Edge[]) {
+  const executableNodeIds = new Set(
+    nodes.filter((node) => isExecutableNode(node)).map((node) => node.id),
+  )
+
   return {
-    nodes: nodes.map((n) => ({
+    nodes: nodes
+      .filter((node) => executableNodeIds.has(node.id))
+      .map((n) => ({
       id: n.id,
       typeId: n.data.definition.id,
       label: n.data.label,
       config: n.data.config,
       ports: n.data.definition.ports,
-    })),
-    edges: edges.map((e) => ({
+      })),
+    edges: edges
+      .filter((edge) => executableNodeIds.has(edge.source) && executableNodeIds.has(edge.target))
+      .map((e) => ({
       id: e.id,
       source: e.source,
       sourceHandle: e.sourceHandle ?? '',
       target: e.target,
       targetHandle: e.targetHandle ?? '',
-    })),
+      })),
   }
 }
 
@@ -96,6 +112,7 @@ export function useRunWorkflow() {
   const completeExecution = useExecutionStore((s) => s.completeExecution)
   const activeExecutionId = useExecutionStore((s) => s.activeExecutionId)
   const status = useExecutionStore((s) => s.status)
+  const updateNodeConfig = useWorkflowStore((s) => s.updateNodeConfig)
   const addTab = useTerminalStore((s) => s.addTab)
   const updateTabStatus = useTerminalStore((s) => s.updateTabStatus)
 
@@ -118,6 +135,9 @@ export function useRunWorkflow() {
           break
         case 'execution:node-complete':
           setNodeComplete(msg.nodeId as string, msg.result as Record<string, unknown>)
+          if (msg.configPatch && typeof msg.configPatch === 'object') {
+            updateNodeConfig(msg.nodeId as string, msg.configPatch as Record<string, unknown>)
+          }
           break
         case 'execution:node-error':
           setNodeError(msg.nodeId as string, msg.error as string)
@@ -140,15 +160,16 @@ export function useRunWorkflow() {
     })
 
     return removeHandler
-  }, [setNodeRunning, setNodeComplete, setNodeError, completeExecution, updateTabStatus, addTab])
+  }, [setNodeRunning, setNodeComplete, setNodeError, completeExecution, updateNodeConfig, updateTabStatus, addTab])
 
   // Run all nodes
   const run = useCallback(async () => {
     if (status === 'running') return
-    if (nodes.length === 0) return
+    const executableNodes = nodes.filter((node) => isExecutableNode(node))
+    if (executableNodes.length === 0) return
     const executionId = nanoid()
     const payload = buildExecPayload(nodes, edges)
-    await executePayload(payload, nodes.map((n) => n.id), executionId, startExecution, completeExecution)
+    await executePayload(payload, executableNodes.map((n) => n.id), executionId, startExecution, completeExecution)
   }, [nodes, edges, status, startExecution, completeExecution])
 
   // Run only selected nodes + their upstream deps
@@ -158,6 +179,7 @@ export function useRunWorkflow() {
     if (selectedIds.size === 0) return
     const executionId = nanoid()
     const sub = collectUpstreamSubgraph(selectedIds, nodes, edges)
+    if (sub.nodes.length === 0) return
     const payload = buildExecPayload(sub.nodes, sub.edges)
     await executePayload(payload, sub.nodes.map((n) => n.id), executionId, startExecution, completeExecution)
   }, [nodes, edges, status, startExecution, completeExecution])
@@ -165,6 +187,8 @@ export function useRunWorkflow() {
   // Run a single node + its upstream deps
   const runNode = useCallback(async (nodeId: string) => {
     if (status === 'running') return
+    const targetNode = nodes.find((node) => node.id === nodeId)
+    if (!targetNode || !isExecutableNode(targetNode)) return
     const executionId = nanoid()
     const sub = collectUpstreamSubgraph(new Set([nodeId]), nodes, edges)
     const payload = buildExecPayload(sub.nodes, sub.edges)

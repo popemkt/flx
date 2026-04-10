@@ -4,12 +4,12 @@ import { PortHandle } from './port-handle'
 import { NodeStatus } from './node-status'
 import { useNodeExecutionState } from '@/stores/execution.store'
 import { useCanvasStore } from '@/stores/canvas.store'
-import { Type, Hash, List, Terminal, Eye, Cpu, Play, type LucideIcon } from 'lucide-react'
+import { Type, Hash, List, Terminal, Eye, Cpu, Play, NotebookPen, Layers3, type LucideIcon } from 'lucide-react'
 import { useRunWorkflow } from '@/hooks/use-execution'
 import type { FlxNodeDefinition } from '@/types/node'
 
 const ICON_MAP: Record<string, LucideIcon> = {
-  Type, Hash, List, Terminal, Eye, Cpu,
+  Type, Hash, List, Terminal, Eye, Cpu, NotebookPen, Layers3,
 }
 
 function NodeIcon({ name, color }: { name?: string; color?: string }) {
@@ -39,10 +39,11 @@ interface BaseNodeShellProps {
   definition: FlxNodeDefinition
   label: string
   selected?: boolean
+  className?: string
   children: React.ReactNode
 }
 
-export function BaseNodeShell({ id, definition, label, selected, children }: BaseNodeShellProps) {
+export function BaseNodeShell({ id, definition, label, selected, className, children }: BaseNodeShellProps) {
   const { status } = useNodeExecutionState(id)
   const viewMode = useCanvasStore((s) => s.viewMode)
   const setSelectedNodeForConfig = useCanvasStore((s) => s.setSelectedNodeForConfig)
@@ -50,6 +51,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
 
   const isCompact = viewMode === 'compact'
   const isConfigTarget = selectedNodeForConfig === id
+  const showRunButton = definition.executable !== false
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -78,7 +80,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
         >
           <NodeIcon name={definition.icon} color={definition.color} />
           <span className="text-xs font-medium truncate flex-1">{label}</span>
-          <RunNodeButton nodeId={id} />
+          {showRunButton ? <RunNodeButton nodeId={id} /> : null}
           <NodeStatus nodeId={id} />
         </div>
 
@@ -119,6 +121,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
         status === 'running' && 'ring-2 ring-blue-500',
         status === 'success' && 'ring-2 ring-green-500',
         status === 'error' && 'ring-2 ring-red-500',
+        className,
       )}
       onDoubleClick={handleDoubleClick}
     >
@@ -129,7 +132,7 @@ export function BaseNodeShell({ id, definition, label, selected, children }: Bas
       >
         <NodeIcon name={definition.icon} color={definition.color} />
         <span className="text-xs font-medium truncate flex-1">{label}</span>
-        <RunNodeButton nodeId={id} />
+        {showRunButton ? <RunNodeButton nodeId={id} /> : null}
         <NodeStatus nodeId={id} />
       </div>
 

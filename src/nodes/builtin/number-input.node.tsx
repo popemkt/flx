@@ -5,9 +5,10 @@ import { useCallback } from 'react'
 
 export const definition: FlxNodeDefinition = {
   id: 'number-input',
-  name: 'Number Input',
+  name: 'Constant (Number)',
   category: 'input',
-  description: 'Provides a numeric value',
+  family: 'source',
+  description: 'Provide a static numeric value',
   icon: 'Hash',
   color: '#3b82f6',
   ports: {

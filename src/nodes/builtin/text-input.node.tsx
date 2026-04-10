@@ -5,9 +5,10 @@ import { useCallback } from 'react'
 
 export const definition: FlxNodeDefinition = {
   id: 'text-input',
-  name: 'Text Input',
+  name: 'Constant (Text)',
   category: 'input',
-  description: 'Provides a string value',
+  family: 'source',
+  description: 'Provide a static string value',
   icon: 'Type',
   color: '#22c55e',
   ports: {
@@ -15,6 +16,7 @@ export const definition: FlxNodeDefinition = {
     outputs: [{ id: 'value', label: 'Value', dataType: 'string' }],
   },
   defaultConfig: { value: '' },
+  paletteHidden: false,
 }
 
 export function TextInputNode({ id, data, selected }: FlxNodeProps) {

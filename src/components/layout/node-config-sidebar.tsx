@@ -25,6 +25,8 @@ function ConfigField({
 
 function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
   const updateConfig = useWorkflowStore((s) => s.updateNodeConfig)
+  const updateNodeLabel = useWorkflowStore((s) => s.updateNodeLabel)
+  const toggleCompositeCollapse = useWorkflowStore((s) => s.toggleCompositeCollapse)
   const { definition, config } = node.data
   const { status, output, error } = useNodeExecutionState(node.id)
 
@@ -32,9 +34,27 @@ function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
     (key: string, value: unknown) => updateConfig(node.id, { [key]: value }),
     [node.id, updateConfig],
   )
+  const setNodeLabel = useCallback(
+    (label: string) => {
+      updateNodeLabel(node.id, label)
+      if (definition.id === 'composite') {
+        updateConfig(node.id, { title: label })
+      }
+    },
+    [definition.id, node.id, updateConfig, updateNodeLabel],
+  )
 
   return (
     <div className="flex flex-col gap-3">
+      <ConfigField label={definition.id === 'composite' ? 'Composite Name' : 'Node Name'}>
+        <input
+          className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+          value={node.data.label}
+          onChange={(e) => setNodeLabel(e.target.value)}
+          placeholder="Give this node a clear purpose"
+        />
+      </ConfigField>
+
       {/* Node type-specific config */}
       {definition.id === 'text-input' && (
         <ConfigField label="Value">
@@ -94,7 +114,7 @@ function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
         </>
       )}
 
-      {definition.id === 'script' && (
+      {(definition.id === 'script' || definition.id === 'command') && (
         <>
           <ConfigField label="Shell">
             <select
@@ -126,10 +146,72 @@ function NodeConfigForm({ node }: { node: Node<FlxNodeData> }) {
         </>
       )}
 
-      {definition.id === 'output-display' && (
+      {definition.id === 'template' && (
+        <ConfigField label="Template">
+          <textarea
+            className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring font-mono resize-y min-h-[100px]"
+            value={String(config.template ?? '{{value}}')}
+            onChange={(e) => setConfig('template', e.target.value)}
+            placeholder="Use {{value}} or any connected input key"
+            rows={5}
+          />
+        </ConfigField>
+      )}
+
+      {(definition.id === 'output-display' || definition.id === 'inspect') && (
         <div className="text-xs text-muted-foreground italic">
-          No configuration needed. This node displays the value from its input port.
+          No execution configuration needed. This node surfaces a value inline and keeps it flowing.
         </div>
+      )}
+
+      {definition.id === 'composite' && (
+        <>
+          <ConfigField label="Summary">
+            <textarea
+              className="w-full bg-muted rounded px-2 py-1.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring resize-y min-h-[72px]"
+              value={String(config.summary ?? '')}
+              onChange={(e) => setConfig('summary', e.target.value)}
+              placeholder="What capability does this abstracted group provide?"
+              rows={4}
+            />
+          </ConfigField>
+
+          <ConfigField label="Presentation">
+            <button
+              type="button"
+              onClick={() => toggleCompositeCollapse(node.id)}
+              className="flex w-full items-center justify-between rounded bg-muted px-2 py-2 text-xs text-foreground transition-colors hover:bg-muted/80"
+            >
+              <span>{config.collapsed ? 'Collapsed' : 'Expanded'}</span>
+              <span className="text-muted-foreground">
+                {config.collapsed ? 'Expand' : 'Collapse'}
+              </span>
+            </button>
+          </ConfigField>
+
+          <div className="rounded-lg border bg-muted/40 px-3 py-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+              Boundary
+            </div>
+            <div className="mt-2 text-xs text-foreground">
+              {Array.isArray(config.childNodeIds) ? config.childNodeIds.length : 0} internal node{Array.isArray(config.childNodeIds) && config.childNodeIds.length === 1 ? '' : 's'}
+            </div>
+            {Array.isArray(config.previewLabels) && config.previewLabels.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {config.previewLabels
+                  .filter((value): value is string => typeof value === 'string')
+                  .map((value) => (
+                    <span
+                      key={value}
+                      className="rounded-full border border-border bg-card px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {value}
+                    </span>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+        </>
       )}
 
       {/* Ports info */}

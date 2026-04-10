@@ -43,6 +43,14 @@ function CanvasInner() {
 
   const nodeTypes = useMemo(() => getReactFlowNodeTypes(), [])
   const edgeTypes = useMemo(() => getReactFlowEdgeTypes(), [])
+  const visibleNodeIds = useMemo(
+    () => new Set(nodes.filter((node) => !node.hidden).map((node) => node.id)),
+    [nodes],
+  )
+  const visibleEdges = useMemo(
+    () => edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)),
+    [edges, visibleNodeIds],
+  )
 
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
@@ -55,7 +63,7 @@ function CanvasInner() {
     <div className="w-full h-full" onContextMenu={onContextMenu}>
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

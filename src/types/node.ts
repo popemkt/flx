@@ -1,15 +1,28 @@
 import type { NodeProps } from '@xyflow/react'
 import type { PortsDefinition, PortValue } from './port'
 
+export type FlxNodeFamily =
+  | 'source'
+  | 'data'
+  | 'effect'
+  | 'control'
+  | 'human'
+  | 'debug'
+  | 'layout'
+
 export interface FlxNodeDefinition {
   id: string
   name: string
   category: 'input' | 'transform' | 'output' | 'control' | 'agent' | 'custom'
+  family: FlxNodeFamily
   description?: string
   icon?: string
   color?: string
   ports: PortsDefinition
   defaultConfig?: Record<string, unknown>
+  executable?: boolean
+  paletteHidden?: boolean
+  aliases?: string[]
 }
 
 export interface FlxNodeData extends Record<string, unknown> {

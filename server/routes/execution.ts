@@ -71,6 +71,7 @@ router.post('/execution/run', async (req, res) => {
           executionId: event.executionId,
           nodeId: event.nodeId,
           result: event.outputs,
+          ...(event.configPatch && { configPatch: event.configPatch }),
         })
         break
       case 'node-error':

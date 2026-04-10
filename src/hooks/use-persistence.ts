@@ -5,6 +5,21 @@ import { getNodeDefinition } from '@/canvas/node-types-registry'
 import type { FlxNodeData } from '@/types/node'
 import type { Node, Edge } from '@xyflow/react'
 
+function extractLayoutConfig(node: Node<FlxNodeData>) {
+  const styleWidth = node.style && 'width' in node.style ? node.style.width : undefined
+  const styleHeight = node.style && 'height' in node.style ? node.style.height : undefined
+
+  const layout: Record<string, unknown> = {}
+
+  if (node.parentId) layout.parentId = node.parentId
+  if (node.extent) layout.extent = node.extent
+  if (node.hidden) layout.hidden = true
+  if (typeof styleWidth === 'number') layout.width = styleWidth
+  if (typeof styleHeight === 'number') layout.height = styleHeight
+
+  return Object.keys(layout).length > 0 ? layout : null
+}
+
 /** Serialize canvas state to API format */
 function serializeNodes(nodes: Node<FlxNodeData>[]) {
   return nodes.map((n) => ({
@@ -13,7 +28,10 @@ function serializeNodes(nodes: Node<FlxNodeData>[]) {
     label: n.data.label,
     positionX: n.position.x,
     positionY: n.position.y,
-    config: n.data.config,
+    config: (() => {
+      const layout = extractLayoutConfig(n)
+      return layout ? { ...n.data.config, __layout: layout } : n.data.config
+    })(),
   }))
 }
 
@@ -44,13 +62,43 @@ function deserializeNodes(
     const definition = getNodeDefinition(n.nodeTypeId)
     if (!definition) continue
 
+    const rawConfig = { ...(n.config ?? definition.defaultConfig ?? {}) }
+    const layout = (
+      rawConfig.__layout &&
+      typeof rawConfig.__layout === 'object' &&
+      !Array.isArray(rawConfig.__layout)
+    ) ? rawConfig.__layout as Record<string, unknown> : null
+    delete rawConfig.__layout
+
     nodes.push({
       id: n.id,
       type: n.nodeTypeId,
       position: { x: n.positionX, y: n.positionY },
+      parentId: typeof layout?.parentId === 'string' ? layout.parentId : undefined,
+      extent: layout?.extent === 'parent' ? 'parent' : undefined,
+      hidden: layout?.hidden === true,
+      style: (() => {
+        const width = layout?.width
+        const height = layout?.height
+        if (typeof width === 'number' || typeof height === 'number') {
+          return {
+            ...(typeof width === 'number' ? { width } : {}),
+            ...(typeof height === 'number' ? { height } : {}),
+          }
+        }
+
+        if (n.nodeTypeId === 'composite') {
+          return {
+            width: Number(rawConfig.expandedWidth ?? 420),
+            height: Number(rawConfig.expandedHeight ?? 260),
+          }
+        }
+
+        return undefined
+      })(),
       data: {
         definition,
-        config: n.config ?? definition.defaultConfig ?? {},
+        config: rawConfig,
         label: n.label,
         workflowId: '',
       },

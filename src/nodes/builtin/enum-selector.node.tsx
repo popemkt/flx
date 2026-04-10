@@ -5,9 +5,10 @@ import { useCallback } from 'react'
 
 export const definition: FlxNodeDefinition = {
   id: 'enum-selector',
-  name: 'Enum Selector',
+  name: 'Input Choice',
   category: 'input',
-  description: 'Select from predefined or dynamic options (pipe command output to the options input)',
+  family: 'human',
+  description: 'Choose from static or piped options during manual workflows',
   icon: 'List',
   color: '#a855f7',
   ports: {

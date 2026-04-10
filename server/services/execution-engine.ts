@@ -53,7 +53,7 @@ type ProgressCallback = (event: ExecutionEvent) => void
 
 export type ExecutionEvent =
   | { type: 'node-start'; executionId: string; nodeId: string }
-  | { type: 'node-complete'; executionId: string; nodeId: string; outputs: Record<string, unknown> }
+  | { type: 'node-complete'; executionId: string; nodeId: string; outputs: Record<string, unknown>; configPatch?: Record<string, unknown> }
   | { type: 'node-error'; executionId: string; nodeId: string; error: string }
   | { type: 'session-created'; executionId: string; nodeId: string; sessionId: string; title: string }
   | { type: 'complete'; executionId: string; status: 'success' | 'error' | 'cancelled' }
@@ -128,9 +128,39 @@ async function runNode(
     }
 
     case 'output-display':
+    case 'inspect':
       return { outputs: { value: inputs.value ?? '' } }
 
-    case 'script': {
+    case 'template': {
+      let text = String(config.template ?? '{{value}}')
+
+      for (const [key, value] of Object.entries(inputs)) {
+        text = text.replaceAll(`{{${key}}}`, String(value))
+      }
+
+      return { outputs: { text } }
+    }
+
+    case 'scratchpad': {
+      const existingTabs = (config.tabs as Array<{ id: string; label: string; content: string }>) ?? []
+      const content = inputs.content != null ? String(inputs.content) : ''
+      const tabNum = existingTabs.length + 1
+      const newTab = {
+        id: `run-${tabNum}-${Date.now()}`,
+        label: `Run ${tabNum}`,
+        content,
+      }
+      const updatedTabs = [...existingTabs, newTab]
+      return {
+        outputs: {
+          content,
+          __configPatch: { tabs: updatedTabs, activeTab: updatedTabs.length - 1 },
+        },
+      }
+    }
+
+    case 'script':
+    case 'command': {
       let command = String(config.command ?? '')
       for (const [key, value] of Object.entries(inputs)) {
         command = command.replaceAll(`{{${key}}}`, String(value).trim())
@@ -283,6 +313,16 @@ export async function executeWorkflow(
       const { outputs, sessionId } = await runNode(node.typeId, inputs, node.config, options?.signal, (sid, title) => {
         onProgress?.({ type: 'session-created', executionId, nodeId, sessionId: sid, title })
       })
+      // Handle __configPatch: persist config updates from the runner
+      if (outputs.__configPatch && typeof outputs.__configPatch === 'object') {
+        const patch = outputs.__configPatch as Record<string, unknown>
+        Object.assign(node.config, patch)
+        // Persist to DB
+        await db.update(schema.workflowNodes)
+          .set({ config: node.config })
+          .where(eq(schema.workflowNodes.id, nodeId))
+      }
+
       dataBus.set(nodeId, outputs)
 
       const completedAt = Date.now()
@@ -299,7 +339,8 @@ export async function executeWorkflow(
         durationMs: completedAt - nodeStartedAt,
       }
 
-      onProgress?.({ type: 'node-complete', executionId, nodeId, outputs: outputs as Record<string, unknown> })
+      const configPatch = outputs.__configPatch as Record<string, unknown> | undefined
+      onProgress?.({ type: 'node-complete', executionId, nodeId, outputs: outputs as Record<string, unknown>, configPatch })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       const completedAt = Date.now()

@@ -6,8 +6,8 @@ test('adds a node from the command palette and reloads persisted state', async (
   await expect(page.getByText('workflow builder')).toBeVisible()
 
   await page.getByLabel('Open command palette').click()
-  await page.getByTestId('command-palette-input').fill('Text Input')
-  await page.getByRole('option', { name: /Text Input/i }).click()
+  await page.getByTestId('command-palette-input').fill('Constant Text')
+  await page.getByRole('option', { name: /Constant \(Text\) Source/i }).click()
 
   await expect(page.locator('[data-node-type="text-input"]')).toHaveCount(1)
 

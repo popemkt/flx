@@ -1,5 +1,5 @@
 import { Panel } from '@xyflow/react'
-import { Play, Copy, Trash2 } from 'lucide-react'
+import { Play, Copy, Trash2, Layers3 } from 'lucide-react'
 import { useRunWorkflow } from '@/hooks/use-execution'
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { useCallback, useMemo } from 'react'
@@ -10,10 +10,19 @@ export function SelectionToolbar() {
   const nodes = useWorkflowStore((s) => s.nodes)
   const addNode = useWorkflowStore((s) => s.addNode)
   const removeNode = useWorkflowStore((s) => s.removeNode)
+  const groupSelectionAsComposite = useWorkflowStore((s) => s.groupSelectionAsComposite)
 
   const selectedNodes = useMemo(
     () => nodes.filter((n) => n.selected),
     [nodes],
+  )
+  const runnableSelectionCount = useMemo(
+    () => selectedNodes.filter((node) => node.data.definition.executable !== false).length,
+    [selectedNodes],
+  )
+  const canAbstract = useMemo(
+    () => selectedNodes.length >= 2 && selectedNodes.every((node) => !node.parentId && node.data.definition.id !== 'composite'),
+    [selectedNodes],
   )
 
   const handleDuplicate = useCallback(() => {
@@ -47,11 +56,21 @@ export function SelectionToolbar() {
 
         <button
           onClick={runSelection}
-          disabled={status === 'running'}
+          disabled={status === 'running' || runnableSelectionCount === 0}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-medium transition-colors"
         >
           <Play className="w-3 h-3" />
           Run Selection
+        </button>
+
+        <button
+          onClick={groupSelectionAsComposite}
+          disabled={!canAbstract}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded border border-violet-300/25 bg-violet-500/10 text-violet-100 disabled:opacity-40 text-xs font-medium transition-colors hover:bg-violet-500/15"
+          title="Collapse the current selection into a reusable-looking composite"
+        >
+          <Layers3 className="w-3 h-3" />
+          Abstract
         </button>
 
         <button

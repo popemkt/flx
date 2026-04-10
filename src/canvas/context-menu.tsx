@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { getAllDefinitions } from './node-types-registry'
+import { getPaletteGroups } from './node-types-registry'
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { nanoid } from 'nanoid'
 import type { FlxNodeDefinition } from '@/types/node'
@@ -42,7 +42,7 @@ interface CanvasContextMenuProps {
 
 export function CanvasContextMenu({ x, y, onClose, screenToFlowPosition, canvasX, canvasY }: CanvasContextMenuProps) {
   const addNode = useWorkflowStore((s) => s.addNode)
-  const definitions = getAllDefinitions()
+  const groups = getPaletteGroups()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -78,15 +78,22 @@ export function CanvasContextMenu({ x, y, onClose, screenToFlowPosition, canvasX
       style={{ left: x, top: y }}
     >
       <div className="px-2 py-1 text-[10px] text-muted-foreground uppercase tracking-wider">Add Node</div>
-      {definitions.map((def) => (
-        <button
-          key={def.id}
-          onClick={() => handleAdd(def)}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-foreground text-left"
-        >
-          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: def.color }} />
-          {def.name}
-        </button>
+      {groups.map((group) => (
+        <div key={group.family} className="py-1">
+          <div className="px-2 py-1 text-[10px] text-muted-foreground/80 uppercase tracking-wider">
+            {group.label}
+          </div>
+          {group.definitions.map((def) => (
+            <button
+              key={def.id}
+              onClick={() => handleAdd(def)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-accent text-foreground text-left"
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: def.color }} />
+              {def.name}
+            </button>
+          ))}
+        </div>
       ))}
     </div>
   )

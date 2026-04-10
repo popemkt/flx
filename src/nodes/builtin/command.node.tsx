@@ -4,13 +4,14 @@ import { useWorkflowStore } from '@/stores/workflow.store'
 import { useCallback } from 'react'
 
 export const definition: FlxNodeDefinition = {
-  id: 'script',
-  name: 'Legacy Script',
-  category: 'transform',
+  id: 'command',
+  name: 'Command',
+  category: 'agent',
   family: 'effect',
-  description: 'Legacy command node kept for backwards compatibility',
+  description: 'Run a local shell command with templated inputs',
   icon: 'Terminal',
   color: '#f59e0b',
+  aliases: ['script'],
   ports: {
     inputs: [
       { id: 'arg1', label: 'Arg 1', dataType: 'string', required: false },
@@ -29,10 +30,9 @@ export const definition: FlxNodeDefinition = {
     shell: 'powershell',
     cwd: '',
   },
-  paletteHidden: true,
 }
 
-export function ScriptNode({ id, data, selected }: FlxNodeProps) {
+export function CommandNode({ id, data, selected }: FlxNodeProps) {
   const updateConfig = useWorkflowStore((s) => s.updateNodeConfig)
 
   const onCommandChange = useCallback(
@@ -76,7 +76,6 @@ export const runner: FlxNodeRunner = {
   async execute(inputs, config, context) {
     let command = String(config.command ?? '')
 
-    // Substitute {{argN}} placeholders with input values
     for (const [key, value] of Object.entries(inputs)) {
       command = command.replaceAll(`{{${key}}}`, String(value).trim())
     }

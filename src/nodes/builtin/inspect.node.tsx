@@ -3,24 +3,23 @@ import type { FlxNodeDefinition, FlxNodeProps, FlxNodeRunner } from '@/types/nod
 import { useNodeExecutionState } from '@/stores/execution.store'
 
 export const definition: FlxNodeDefinition = {
-  id: 'output-display',
-  name: 'Legacy Output',
+  id: 'inspect',
+  name: 'Inspect',
   category: 'output',
   family: 'debug',
-  description: 'Legacy inspect node kept for backwards compatibility',
+  description: 'Display a value inline without changing it',
   icon: 'Eye',
   color: '#06b6d4',
+  aliases: ['output-display'],
   ports: {
-    inputs: [{ id: 'value', label: 'Value', dataType: 'string', required: false }],
-    outputs: [],
+    inputs: [{ id: 'value', label: 'Value', dataType: 'string', required: false, multi: true }],
+    outputs: [{ id: 'value', label: 'Value', dataType: 'string' }],
   },
   defaultConfig: {},
-  paletteHidden: true,
 }
 
-export function OutputDisplayNode({ id, data, selected }: FlxNodeProps) {
+export function InspectNode({ id, data, selected }: FlxNodeProps) {
   const { output, error } = useNodeExecutionState(id)
-
   const displayValue = output?.value ?? data.lastOutputs?.value ?? null
 
   return (
@@ -31,7 +30,7 @@ export function OutputDisplayNode({ id, data, selected }: FlxNodeProps) {
         ) : displayValue !== null ? (
           <pre className="whitespace-pre-wrap text-muted-foreground">{String(displayValue)}</pre>
         ) : (
-          <span className="text-muted-foreground/50 italic">No output yet</span>
+          <span className="text-muted-foreground/50 italic">Awaiting input</span>
         )}
       </div>
     </BaseNodeShell>

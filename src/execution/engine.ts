@@ -11,15 +11,23 @@ interface ExecutionCallbacks {
   onComplete: (status: 'success' | 'error') => void
 }
 
+function isExecutableNode(node: Node<FlxNodeData>): boolean {
+  return node.data.definition.executable !== false
+}
+
 export async function executeWorkflow(
   nodes: Node<FlxNodeData>[],
   edges: Edge[],
   context: ExecutionContext,
   callbacks: ExecutionCallbacks,
 ): Promise<void> {
+  const runnableNodes = nodes.filter((node) => isExecutableNode(node))
+  const runnableIds = new Set(runnableNodes.map((node) => node.id))
+  const runnableEdges = edges.filter((edge) => runnableIds.has(edge.source) && runnableIds.has(edge.target))
+
   const sortedIds = topoSort(
-    nodes.map((n) => n.id),
-    edges.map((e) => ({ from: e.source, to: e.target })),
+    runnableNodes.map((n) => n.id),
+    runnableEdges.map((e) => ({ from: e.source, to: e.target })),
   )
 
   const dataBus = new Map<string, Record<string, PortValue>>()
@@ -30,7 +38,7 @@ export async function executeWorkflow(
       return
     }
 
-    const node = nodes.find((n) => n.id === nodeId)
+    const node = runnableNodes.find((n) => n.id === nodeId)
     if (!node) continue
 
     const definition = node.data.definition
@@ -46,7 +54,7 @@ export async function executeWorkflow(
     const inputs: Record<string, PortValue> = {}
 
     for (const inputPort of definition.ports.inputs) {
-      const edge = edges.find(
+      const edge = runnableEdges.find(
         (e) => e.target === nodeId && e.targetHandle?.startsWith(inputPort.id + '::'),
       )
 

@@ -1,6 +1,6 @@
 import { Command } from 'cmdk'
 import { useCommandPaletteStore } from '@/stores/command-palette.store'
-import { getAllDefinitions } from '@/canvas/node-types-registry'
+import { getPaletteGroups } from '@/canvas/node-types-registry'
 import { useWorkflowStore } from '@/stores/workflow.store'
 import { useRunWorkflow } from '@/hooks/use-execution'
 import { useCanvasStore } from '@/stores/canvas.store'
@@ -34,8 +34,8 @@ export function CommandPalette() {
   const setSelectedNodeForConfig = useCanvasStore((s) => s.setSelectedNodeForConfig)
   const toggleTerminal = useTerminalStore((s) => s.togglePanel)
   const { run } = useRunWorkflow()
-  const definitions = useMemo<FlxNodeDefinition[]>(
-    () => (isOpen ? getAllDefinitions() : []),
+  const paletteGroups = useMemo(
+    () => (isOpen ? getPaletteGroups() : []),
     [isOpen],
   )
 
@@ -138,20 +138,22 @@ export function CommandPalette() {
             </Command.Item>
           </Command.Group>
 
-          <Command.Group heading="Add Node" className={groupHeadingClass}>
-            {definitions.map((def) => (
-              <Command.Item
-                key={def.id}
-                value={`add ${def.name} ${def.category}`}
-                onSelect={() => handleAddNode(def)}
-                className={itemClass}
-              >
-                <Plus className="w-4 h-4" style={{ color: def.color }} />
-                {def.name}
-                <span className="ml-auto text-[10px] text-muted-foreground">{def.category}</span>
-              </Command.Item>
-            ))}
-          </Command.Group>
+          {paletteGroups.map((group) => (
+            <Command.Group key={group.family} heading={`Add ${group.label}`} className={groupHeadingClass}>
+              {group.definitions.map((def) => (
+                <Command.Item
+                  key={def.id}
+                  value={`add ${def.name} ${group.label} ${def.category}`}
+                  onSelect={() => handleAddNode(def)}
+                  className={itemClass}
+                >
+                  <Plus className="w-4 h-4" style={{ color: def.color }} />
+                  {def.name}
+                  <span className="ml-auto text-[10px] text-muted-foreground">{group.label}</span>
+                </Command.Item>
+              ))}
+            </Command.Group>
+          ))}
 
           {/* Navigate to existing nodes */}
           {nodes.length > 0 && (
